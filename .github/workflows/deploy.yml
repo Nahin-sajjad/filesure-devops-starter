@@ -16,7 +16,7 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Build & Push Docker images
+    - name: Build and Push Docker images
       run: |
         docker build -t filesureacr.azurecr.io/filesure-api:latest ./api
         docker build -t filesureacr.azurecr.io/filesure-worker:latest ./worker
@@ -24,8 +24,17 @@ jobs:
         docker push filesureacr.azurecr.io/filesure-worker:latest
 
     - name: Deploy to AKS
+      env:
+        MONGO_URI: ${{ secrets.MONGO_URI }}
+        AZURE_BLOB_CONN: ${{ secrets.AZURE_BLOB_CONN }}
       run: |
-        kubectl apply -f k8s/namespace.yaml
-        kubectl apply -f k8s/secrets.yaml
+        # Create K8s secret from environment variables
+        kubectl create secret generic filesure-secrets \
+          --namespace filesure-prod \
+          --from-literal=mongo-uri="$MONGO_URI" \
+          --from-literal=azure-blob-conn="$AZURE_BLOB_CONN" \
+          --dry-run=client -o yaml | kubectl apply -f -
+
+        # Deploy manifests
         kubectl apply -f k8s/api-deployment.yaml
         kubectl apply -f k8s/worker-scaledjob.yaml
