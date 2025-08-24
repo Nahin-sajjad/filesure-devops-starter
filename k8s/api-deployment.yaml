@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filesure-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: filesure-api
+  template:
+    metadata:
+      labels:
+        app: filesure-api
+    spec:
+      containers:
+      - name: api
+        image: filesureacr.azurecr.io/filesure-api:latest
+        ports:
+        - containerPort: 5001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: filesure-api-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: filesure-api
+  ports:
+  - port: 80
+    targetPort: 5001

@@ -1,0 +1,27 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: filesure-worker
+spec:
+  jobTargetRef:
+    template:
+      spec:
+        containers:
+        - name: worker
+          image: filesureacr.azurecr.io/filesure-worker:latest
+          envFrom:
+          - secretRef:
+              name: filesure-secrets
+        restartPolicy: Never
+  pollingInterval: 30
+  cooldownPeriod: 300
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  maxReplicaCount: 10
+  triggers:
+  - type: mongodb
+    metadata:
+      dbName: filesure
+      collectionName: jobs
+      query: '{"status": "pending"}'
+      connectionStringFromEnv: MONGODB_URI
