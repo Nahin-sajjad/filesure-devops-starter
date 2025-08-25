@@ -42,6 +42,7 @@ jobs:
         MONGO_URI: ${{ secrets.MONGO_URI }}
         AZURE_BLOB_CONN: ${{ secrets.AZURE_BLOB_CONN }}
       run: |
+        kubectl create namespace filesure-prod --dry-run=client -o yaml | kubectl apply -f -
         # Create/update Kubernetes secret
         kubectl create secret generic filesure-secrets \
           --namespace filesure-prod \
