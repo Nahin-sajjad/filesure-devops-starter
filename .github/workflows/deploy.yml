@@ -8,13 +8,20 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
+    environment: prod
 
-    - name: Log in to Azure
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Azure Login
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Azure Container Registry Login
+      run: |
+        az acr login --name filesureacr
 
     - name: Build and Push Docker images
       run: |
@@ -23,18 +30,26 @@ jobs:
         docker push filesureacr.azurecr.io/filesure-api:latest
         docker push filesureacr.azurecr.io/filesure-worker:latest
 
+    - name: Set AKS context
+      uses: azure/aks-set-context@v3
+      with:
+        resource-group: ${{ secrets.AZURE_RG }}
+        cluster-name: ${{ secrets.AZURE_AKS_CLUSTER }}
+        credentials: ${{ secrets.AZURE_CREDENTIALS }}
+
     - name: Deploy to AKS
       env:
         MONGO_URI: ${{ secrets.MONGO_URI }}
         AZURE_BLOB_CONN: ${{ secrets.AZURE_BLOB_CONN }}
       run: |
-        # Create K8s secret from environment variables
+        # Create/update Kubernetes secret
         kubectl create secret generic filesure-secrets \
           --namespace filesure-prod \
-          --from-literal=mongo-uri="$MONGO_URI" \
-          --from-literal=azure-blob-conn="$AZURE_BLOB_CONN" \
+          --from-literal=MONGO_URI="$MONGO_URI" \
+          --from-literal=AZURE_BLOB_CONN="$AZURE_BLOB_CONN" \
+          --from-literal=AZURE_CONTAINER="documents" \
           --dry-run=client -o yaml | kubectl apply -f -
 
-        # Deploy manifests
-        kubectl apply -f k8s/api-deployment.yaml
-        kubectl apply -f k8s/worker-scaledjob.yaml
+        # Apply manifests
+        kubectl apply -f k8s/api-deployment.yaml -n filesure-prod
+        kubectl apply -f k8s/worker-scaledjob.yaml -n filesure-prod
