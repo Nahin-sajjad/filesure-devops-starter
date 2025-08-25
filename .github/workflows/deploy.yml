@@ -26,7 +26,7 @@ jobs:
     - name: Build and Push Docker images
       run: |
         docker build -t filesureacr.azurecr.io/filesure-api:latest -f api/Dockerfile .
-        docker build -t filesureacr.azurecr.io/filesure-worker:latest worker/Dockerfile .
+        docker build -t filesureacr.azurecr.io/filesure-worker:latest -f worker/Dockerfile .
         docker push filesureacr.azurecr.io/filesure-api:latest
         docker push filesureacr.azurecr.io/filesure-worker:latest
 
