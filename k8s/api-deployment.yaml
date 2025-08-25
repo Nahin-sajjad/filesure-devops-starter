@@ -37,7 +37,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: filesure-secrets
-              key: azure-blob-conn
+              key: AZURE_BLOB_CONN
         resources:
           requests:
             memory: "256Mi"
