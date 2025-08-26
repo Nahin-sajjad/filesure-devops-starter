@@ -11,11 +11,14 @@ fi
 JOB_ID=$(python3 - <<END
 import os
 from pymongo import MongoClient
+from bson import ObjectId
+
 client = MongoClient(os.environ.get("MONGO_URI_STANDARD"))
 db = client["filesure"]
 job = db.jobs.find_one({"jobStatus": "pending"})
 if job:
-    print(job["_id"])
+    # Convert ObjectId to string
+    print(str(job["_id"]))
 END
 )
 
