@@ -1,9 +1,9 @@
 #!/bin/sh
 set -e
 
-# Ensure MongoDB URI is set
-if [ -z "$MONGO_URI" ]; then
-  echo "MONGO_URI environment variable is not set"
+# Use the standard MongoDB URI
+if [ -z "$MONGO_URI_STANDARD" ]; then
+  echo "MONGO_URI_STANDARD environment variable is not set"
   exit 1
 fi
 
@@ -11,7 +11,7 @@ fi
 JOB_ID=$(python3 - <<END
 import os
 from pymongo import MongoClient
-client = MongoClient(os.environ.get("MONGO_URI"))
+client = MongoClient(os.environ.get("MONGO_URI_STANDARD"))
 db = client["filesure"]
 job = db.jobs.find_one({"jobStatus": "pending"})
 if job:
