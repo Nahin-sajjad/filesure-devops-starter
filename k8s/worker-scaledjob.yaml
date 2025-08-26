@@ -18,10 +18,8 @@ spec:
         - name: filesure-worker
           image: filesureacr.azurecr.io/filesure-worker:latest
           imagePullPolicy: Always
-          ports:
-          - containerPort: 9100
-            name: metrics
-          # Pass MongoDB job _id dynamically to worker
+          command: ["python"]  # Explicit command
+          args: ["downloader.py"]  # Explicit argument
           env:
           - name: MONGO_URI
             valueFrom:
@@ -33,6 +31,13 @@ spec:
               secretKeyRef:
                 name: filesure-secrets
                 key: AZURE_BLOB_CONN
+          - name: JOB_ID
+            value: "{{.jobID}}"  # KEDA will inject the job ID here
+          - name: AZURE_CONTAINER
+            value: "documents"
+          ports:
+          - containerPort: 9100
+            name: metrics
           resources:
             requests:
               memory: "512Mi"
@@ -55,9 +60,10 @@ spec:
       dbName: filesure
       collection: jobs
       query: '{"jobStatus": "pending"}'
-      queryValue: "1"
+      queryValue: "_id"
 
 ---
+
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:

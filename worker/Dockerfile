@@ -4,7 +4,5 @@ RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificat
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY worker/downloader.py .
-COPY worker/entrypoint.sh .
-RUN chmod +x /app/entrypoint.sh
 EXPOSE 9100
-ENTRYPOINT ["/bin/sh", "/app/entrypoint.sh"]
+CMD ["python", "downloader.py"]
