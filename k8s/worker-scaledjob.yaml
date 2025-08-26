@@ -19,7 +19,7 @@ spec:
           image: filesureacr.azurecr.io/filesure-worker:latest
           imagePullPolicy: Always
           command: ["python"]
-          args: ["downloader.py", "$(JOB_ID)"]  # Pass JOB_ID as argument
+          args: ["downloader.py"]  # KEDA automatically appends JOB_ID here
           env:
           - name: MONGO_URI
             valueFrom:
@@ -31,10 +31,6 @@ spec:
               secretKeyRef:
                 name: filesure-secrets
                 key: AZURE_BLOB_CONN
-          - name: JOB_ID
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.annotations['keda.sh/job-id']
           - name: AZURE_CONTAINER
             value: "documents"
           ports:
@@ -63,6 +59,7 @@ spec:
       collection: jobs
       query: '{"jobStatus": "pending"}'
       queryValue: "1"
+
 ---
 
 apiVersion: monitoring.coreos.com/v1
