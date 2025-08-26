@@ -18,8 +18,13 @@ spec:
         - name: filesure-worker
           image: filesureacr.azurecr.io/filesure-worker:latest
           imagePullPolicy: Always
-          command: ["python"]
-          args: ["downloader.py", "$(JOB_ID)"]  # JOB_ID injected by KEDA
+          command: ["/bin/sh", "-c"]
+          args:
+          - |
+            # Extract job ID from annotations
+            JOB_ID=$(grep "keda.sh/job-id" /etc/podinfo/annotations | sed 's/.*"keda.sh\/job-id":"\([^"]*\)".*/\1/')
+            echo "Starting worker for job: $JOB_ID"
+            exec python downloader.py "$JOB_ID"
           env:
           - name: MONGO_URI
             valueFrom:
@@ -33,10 +38,6 @@ spec:
                 key: AZURE_BLOB_CONN
           - name: AZURE_CONTAINER
             value: "documents"
-          - name: JOB_ID
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.annotations['keda.sh/job-id']
           ports:
           - containerPort: 9100
             name: metrics
@@ -47,6 +48,17 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "1"
+          volumeMounts:
+          - name: podinfo
+            mountPath: /etc/podinfo
+            readOnly: true
+        volumes:
+        - name: podinfo
+          downwardAPI:
+            items:
+            - path: "annotations"
+              fieldRef:
+                fieldPath: metadata.annotations
         restartPolicy: Never
     backoffLimit: 2
     completions: 1
@@ -62,7 +74,7 @@ spec:
       dbName: filesure
       collection: jobs
       query: '{"jobStatus": "pending"}'
-      jobIDFromQuery: '_id'   # <-- This is the key change
+      queryValue: "1"  # This line was missing - it's required! # <-- This is the key change
 
 
 ---
