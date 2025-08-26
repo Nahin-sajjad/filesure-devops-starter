@@ -6,6 +6,9 @@ metadata:
 spec:
   jobTargetRef:
     template:
+      metadata:
+        labels:
+          app: filesure-worker
       spec:
         containers:
           - name: filesure-worker
@@ -36,22 +39,21 @@ spec:
                 cpu: "500m"
                 memory: "512Mi"
         restartPolicy: Never
-  pollingInterval: 30                   # KEDA checks MongoDB every 30s
+  pollingInterval: 30
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
   maxReplicaCount: 10
   triggers:
     - type: mongodb
       metadata:
-        connectionFromEnv: MONGO_URI
-        databaseName: filesure
-        collectionName: jobs
-        queryValue: '{"jobStatus":"pending"}'
+        # Correct parameter names for KEDA v2
+        uriFromEnv: MONGO_URI
+        dbName: filesure
+        collection: jobs
+        query: '{"jobStatus":"pending"}'
         targetValue: "1"
 
-
 ---
-
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -62,6 +64,6 @@ spec:
     matchLabels:
       app: filesure-worker
   podMetricsEndpoints:
-  - port: metrics
-    interval: 30s
-    path: /metrics
+    - port: metrics
+      interval: 30s
+      path: /metrics
