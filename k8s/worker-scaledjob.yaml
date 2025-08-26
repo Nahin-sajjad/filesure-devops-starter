@@ -11,7 +11,7 @@ spec:
           - name: filesure-worker
             image: filesureacr.azurecr.io/filesure-worker:latest
             imagePullPolicy: Always
-            command: ["python", "downloader.py"]
+            command: ["/bin/sh", "/start-worker.sh"]
             env:
               - name: MONGO_URI
                 valueFrom:
@@ -35,22 +35,20 @@ spec:
               limits:
                 cpu: "500m"
                 memory: "512Mi"
-            ports:
-              - containerPort: 9100
         restartPolicy: Never
-  pollingInterval: 30
+  pollingInterval: 30                   # KEDA checks MongoDB every 30s
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
   maxReplicaCount: 10
   triggers:
     - type: mongodb
       metadata:
-        # Use KEDA secret reference for MongoDB URI
         connectionFromEnv: MONGO_URI
         databaseName: filesure
         collectionName: jobs
         queryValue: '{"jobStatus":"pending"}'
         targetValue: "1"
+
 
 ---
 
