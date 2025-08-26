@@ -38,19 +38,19 @@ spec:
             ports:
               - containerPort: 9100
         restartPolicy: Never
-  pollingInterval: 30            # KEDA checks for pending jobs every 30s
+  pollingInterval: 30
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
   maxReplicaCount: 10
   triggers:
     - type: mongodb
       metadata:
-        uri: ${MONGO_URI}                     # KEDA reads MongoDB URI from environment
+        # Use KEDA secret reference for MongoDB URI
+        connectionFromEnv: MONGO_URI
         databaseName: filesure
         collectionName: jobs
-        queryValue: '{"jobStatus":"pending"}' # Find jobs with "pending" status
-        targetValue: "1"                      # 1 pending job triggers 1 worker pod
-
+        queryValue: '{"jobStatus":"pending"}'
+        targetValue: "1"
 
 ---
 
