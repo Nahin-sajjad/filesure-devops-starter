@@ -27,7 +27,7 @@ spec:
                 valueFrom:
                   secretKeyRef:
                     name: filesure-secrets
-                    key: AZURE_CONTAINER
+                    key: documents
             resources:
               requests:
                 cpu: "100m"
