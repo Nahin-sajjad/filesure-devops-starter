@@ -1,80 +1,55 @@
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
 metadata:
-  name: filesure-worker
+  name: filesure-worker-scaledjob
   namespace: filesure-prod
 spec:
   jobTargetRef:
     template:
-      metadata:
-        labels:
-          app: filesure-worker
-        annotations:
-          prometheus.io/scrape: "true"
-          prometheus.io/port: "9100"
-          prometheus.io/path: "/metrics"
       spec:
         containers:
-        - name: filesure-worker
-          image: filesureacr.azurecr.io/filesure-worker:latest
-          imagePullPolicy: Always
-          command: ["/bin/sh", "-c"]
-          args:
-          - |
-            # Extract job ID from annotations
-            JOB_ID=$(grep "keda.sh/job-id" /etc/podinfo/annotations | sed 's/.*"keda.sh\/job-id":"\([^"]*\)".*/\1/')
-            echo "Starting worker for job: $JOB_ID"
-            exec python downloader.py "$JOB_ID"
-          env:
-          - name: MONGO_URI
-            valueFrom:
-              secretKeyRef:
-                name: filesure-secrets
-                key: MONGO_URI
-          - name: AZURE_BLOB_CONN
-            valueFrom:
-              secretKeyRef:
-                name: filesure-secrets
-                key: AZURE_BLOB_CONN
-          - name: AZURE_CONTAINER
-            value: "documents"
-          ports:
-          - containerPort: 9100
-            name: metrics
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "500m"
-            limits:
-              memory: "1Gi"
-              cpu: "1"
-          volumeMounts:
-          - name: podinfo
-            mountPath: /etc/podinfo
-            readOnly: true
-        volumes:
-        - name: podinfo
-          downwardAPI:
-            items:
-            - path: "annotations"
-              fieldRef:
-                fieldPath: metadata.annotations
+          - name: filesure-worker
+            image: filesureacr.azurecr.io/filesure-worker:latest
+            imagePullPolicy: Always
+            command: ["python", "downloader.py"]
+            env:
+              - name: MONGO_URI
+                valueFrom:
+                  secretKeyRef:
+                    name: filesure-secrets
+                    key: MONGO_URI
+              - name: AZURE_BLOB_CONN
+                valueFrom:
+                  secretKeyRef:
+                    name: filesure-secrets
+                    key: AZURE_BLOB_CONN
+              - name: AZURE_CONTAINER
+                valueFrom:
+                  secretKeyRef:
+                    name: filesure-secrets
+                    key: AZURE_CONTAINER
+            resources:
+              requests:
+                cpu: "100m"
+                memory: "128Mi"
+              limits:
+                cpu: "500m"
+                memory: "512Mi"
+            ports:
+              - containerPort: 9100
         restartPolicy: Never
-    backoffLimit: 2
-    completions: 1
-    ttlSecondsAfterFinished: 300
-  pollingInterval: 30
-  successfulJobsHistoryLimit: 5
-  failedJobsHistoryLimit: 5
+  pollingInterval: 30            # KEDA checks for pending jobs every 30s
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
   maxReplicaCount: 10
   triggers:
-  - type: mongodb
-    metadata:
-      connectionStringFromEnv: MONGO_URI
-      dbName: filesure
-      collection: jobs
-      query: '{"jobStatus": "pending"}'
-      queryValue: "1"  # This line was missing - it's required! # <-- This is the key change
+    - type: mongodb
+      metadata:
+        uri: ${MONGO_URI}                     # KEDA reads MongoDB URI from environment
+        databaseName: filesure
+        collectionName: jobs
+        queryValue: '{"jobStatus":"pending"}' # Find jobs with "pending" status
+        targetValue: "1"                      # 1 pending job triggers 1 worker pod
 
 
 ---
