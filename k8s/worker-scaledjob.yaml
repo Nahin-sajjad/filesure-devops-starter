@@ -33,10 +33,6 @@ spec:
               secretKeyRef:
                 name: filesure-secrets
                 key: AZURE_BLOB_CONN
-          - name: JOB_ID
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.labels['job-name']
           resources:
             requests:
               memory: "512Mi"
