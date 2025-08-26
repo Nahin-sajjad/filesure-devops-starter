@@ -36,7 +36,7 @@ spec:
           - name: JOB_ID
             valueFrom:
               fieldRef:
-                fieldPath: metadata.labels['keda.sh/job-id']
+                fieldPath: metadata.annotations['keda.sh/job_id']
           resources:
             requests:
               memory: "512Mi"
