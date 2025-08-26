@@ -19,7 +19,7 @@ spec:
           image: filesureacr.azurecr.io/filesure-worker:latest
           imagePullPolicy: Always
           command: ["python"]
-          args: ["downloader.py"]
+          args: ["downloader.py", "$(JOB_ID)"]  # Pass JOB_ID as argument
           env:
           - name: MONGO_URI
             valueFrom:
@@ -62,7 +62,7 @@ spec:
       dbName: filesure
       collection: jobs
       query: '{"jobStatus": "pending"}'
-      queryValue: "1"  # Scale based on count of pending jobs
+      queryValue: "1"
 ---
 
 apiVersion: monitoring.coreos.com/v1
