@@ -20,7 +20,7 @@ spec:
                 valueFrom:
                   secretKeyRef:
                     name: filesure-secrets
-                    key: MONGO_URI
+                    key: MONGO_URI_STANDARD   # using standard URI
               - name: AZURE_BLOB_CONN
                 valueFrom:
                   secretKeyRef:
@@ -46,11 +46,12 @@ spec:
   triggers:
     - type: mongodb
       metadata:
-        connectionFromEnv: MONGO_URI
+        connectionFromEnv: MONGO_URI     # this will use MONGO_URI_STANDARD
         dbName: filesure
         collection: jobs
         query: '{"jobStatus":"pending"}'
         queryValue: "1"   # scale when >= 1 pending job
+
 
 ---
 
