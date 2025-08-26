@@ -63,3 +63,18 @@ spec:
       collection: jobs
       query: '{"jobStatus": "pending"}'
       queryValue: "1"  # Scale based on count of pending jobs
+---
+
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: filesure-worker-monitor
+  namespace: filesure-prod
+spec:
+  selector:
+    matchLabels:
+      app: filesure-worker
+  podMetricsEndpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
