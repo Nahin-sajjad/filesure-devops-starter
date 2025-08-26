@@ -18,8 +18,8 @@ spec:
         - name: filesure-worker
           image: filesureacr.azurecr.io/filesure-worker:latest
           imagePullPolicy: Always
-          command: ["python"]  # Explicit command
-          args: ["downloader.py"]  # Explicit argument
+          command: ["python"]
+          args: ["downloader.py"]
           env:
           - name: MONGO_URI
             valueFrom:
@@ -32,7 +32,9 @@ spec:
                 name: filesure-secrets
                 key: AZURE_BLOB_CONN
           - name: JOB_ID
-            value: "{{.jobID}}"  # KEDA will inject the job ID here
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['keda.sh/job-id']
           - name: AZURE_CONTAINER
             value: "documents"
           ports:
@@ -60,20 +62,4 @@ spec:
       dbName: filesure
       collection: jobs
       query: '{"jobStatus": "pending"}'
-      queryValue: "_id"
-
----
-
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  name: filesure-worker-monitor
-  namespace: filesure-prod
-spec:
-  selector:
-    matchLabels:
-      app: filesure-worker
-  podMetricsEndpoints:
-  - port: metrics
-    interval: 30s
-    path: /metrics
+      queryValue: "1"  # Scale based on count of pending jobs
