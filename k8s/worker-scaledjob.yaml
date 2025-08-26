@@ -64,6 +64,6 @@ spec:
     matchLabels:
       app: filesure-worker
   podMetricsEndpoints:
-    - port: 9100
+    - port: metrics
       interval: 30s
       path: /metrics
