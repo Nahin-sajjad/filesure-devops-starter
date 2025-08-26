@@ -48,7 +48,7 @@ jobs:
         kubectl create secret generic filesure-secrets \
           --namespace filesure-prod \
           --from-literal=MONGO_URI="$MONGO_URI" \
-          --from-literal=MONGO_URI="$MONGO_URI_STANDARD" \
+          --from-literal=MONGO_URI_STANDARD="$MONGO_URI_STANDARD" \
           --from-literal=AZURE_BLOB_CONN="$AZURE_BLOB_CONN" \
           --from-literal=AZURE_CONTAINER="documents" \
           --dry-run=client -o yaml | kubectl apply -f -
