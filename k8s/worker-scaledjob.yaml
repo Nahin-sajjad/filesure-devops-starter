@@ -16,7 +16,7 @@ spec:
             imagePullPolicy: Always
             command: ["./start-worker.sh"]
             env:
-              - name: MONGO_URI
+              - name: MONGO_URI_STANDARD
                 valueFrom:
                   secretKeyRef:
                     name: filesure-secrets
@@ -46,7 +46,7 @@ spec:
   triggers:
     - type: mongodb
       metadata:
-        connectionFromEnv: MONGO_URI     # this will use MONGO_URI_STANDARD
+        connectionFromEnv: MONGO_URI_STANDARD    # this will use MONGO_URI_STANDARD
         dbName: filesure
         collection: jobs
         query: '{"jobStatus":"pending"}'
