@@ -21,11 +21,6 @@ spec:
                   secretKeyRef:
                     name: filesure-secrets
                     key: MONGO_URI
-              - name: MONGO_URI_STANDARD  # ADD THIS for KEDA
-                valueFrom:
-                  secretKeyRef:
-                    name: filesure-secrets
-                    key: MONGO_URI_STANDARD
               - name: AZURE_BLOB_CONN
                 valueFrom:
                   secretKeyRef:
@@ -39,27 +34,23 @@ spec:
             resources:
               requests:
                 cpu: "100m"
-                memory: "256Mi"  # Increased for Python
+                memory: "128Mi"
               limits:
                 cpu: "500m"
                 memory: "512Mi"
-            ports:
-              - containerPort: 9100
-                name: metrics
         restartPolicy: Never
-  pollingInterval: 30
+  pollingInterval: 30                   # Check MongoDB every 30s
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
   maxReplicaCount: 10
   triggers:
     - type: mongodb
       metadata:
-        connectionFromEnv: MONGO_URI_STANDARD  # CHANGED: Use standard connection
-        databaseName: filesure
-        collectionName: jobs
-        query: '{"jobStatus":"pending"}'  # CHANGED: query instead of queryValue
-        queryValue: "1"                   # ADDED: target value
-        activationQueryValue: "1"   
+        connectionFromEnv: MONGO_URI
+        dbName: filesure
+        collection: jobs
+        query: '{"jobStatus":"pending"}'
+        queryValue: "1"   # scale when >= 1 pending job
 
 ---
 
