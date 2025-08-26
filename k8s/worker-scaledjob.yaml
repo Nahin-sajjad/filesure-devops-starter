@@ -11,7 +11,7 @@ spec:
           - name: filesure-worker
             image: filesureacr.azurecr.io/filesure-worker:latest
             imagePullPolicy: Always
-            command: ["/bin/sh", "/start-worker.sh"]
+            command: ["./start-worker.sh"]
             env:
               - name: MONGO_URI
                 valueFrom:
