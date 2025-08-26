@@ -6,21 +6,18 @@ metadata:
 spec:
   jobTargetRef:
     template:
-      metadata:
-        labels:
-          app: filesure-worker
       spec:
         containers:
           - name: filesure-worker
             image: filesureacr.azurecr.io/filesure-worker:latest
             imagePullPolicy: Always
-            command: ["./start-worker.sh"]
+            command: ["python", "downloader.py"]
             env:
-              - name: MONGO_URI_STANDARD
+              - name: MONGO_URI
                 valueFrom:
                   secretKeyRef:
                     name: filesure-secrets
-                    key: MONGO_URI_STANDARD   # using standard URI
+                    key: MONGO_URI
               - name: AZURE_BLOB_CONN
                 valueFrom:
                   secretKeyRef:
@@ -38,20 +35,22 @@ spec:
               limits:
                 cpu: "500m"
                 memory: "512Mi"
+            ports:
+              - containerPort: 9100
         restartPolicy: Never
-  pollingInterval: 30                   # Check MongoDB every 30s
+  pollingInterval: 30
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
   maxReplicaCount: 10
   triggers:
     - type: mongodb
       metadata:
-        connectionFromEnv: MONGO_URI_STANDARD    # this will use MONGO_URI_STANDARD
-        dbName: filesure
-        collection: jobs
+        # Use KEDA secret reference for MongoDB URI
+        connectionFromEnv: MONGO_URI
+        databaseName: filesure
+        collectionName: jobs
         query: '{"jobStatus":"pending"}'
-        queryValue: "1"   # scale when >= 1 pending job
-
+        queryValue: "1"
 
 ---
 
@@ -65,6 +64,6 @@ spec:
     matchLabels:
       app: filesure-worker
   podMetricsEndpoints:
-    - port: metrics
-      interval: 30s
-      path: /metrics
+  - port: metrics
+    interval: 30s
+    path: /metrics
