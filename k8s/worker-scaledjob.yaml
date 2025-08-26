@@ -21,6 +21,11 @@ spec:
                   secretKeyRef:
                     name: filesure-secrets
                     key: MONGO_URI
+              - name: MONGO_URI_STANDARD  # ADD THIS for KEDA
+                valueFrom:
+                  secretKeyRef:
+                    name: filesure-secrets
+                    key: MONGO_URI_STANDARD
               - name: AZURE_BLOB_CONN
                 valueFrom:
                   secretKeyRef:
@@ -34,10 +39,13 @@ spec:
             resources:
               requests:
                 cpu: "100m"
-                memory: "128Mi"
+                memory: "256Mi"  # Increased for Python
               limits:
                 cpu: "500m"
                 memory: "512Mi"
+            ports:
+              - containerPort: 9100
+                name: metrics
         restartPolicy: Never
   pollingInterval: 30
   successfulJobsHistoryLimit: 3
@@ -46,14 +54,15 @@ spec:
   triggers:
     - type: mongodb
       metadata:
-        # Correct parameter names for KEDA v2
-        uriFromEnv: MONGO_URI
-        dbName: filesure
-        collection: jobs
-        query: '{"jobStatus":"pending"}'
-        targetValue: "1"
+        connectionFromEnv: MONGO_URI_STANDARD  # CHANGED: Use standard connection
+        databaseName: filesure
+        collectionName: jobs
+        query: '{"jobStatus":"pending"}'  # CHANGED: query instead of queryValue
+        queryValue: "1"                   # ADDED: target value
+        activationQueryValue: "1"   
 
 ---
+
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -64,6 +73,6 @@ spec:
     matchLabels:
       app: filesure-worker
   podMetricsEndpoints:
-    - port: metrics
+    - port: 9100
       interval: 30s
       path: /metrics
