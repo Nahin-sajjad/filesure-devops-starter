@@ -29,8 +29,19 @@ spec:
           ports:
             - containerPort: 9100
               name: metrics
+          # Use shell command to extract job ID from KEDA annotation and pass as argument
           command: ["/bin/sh", "-c"]
-          args: ["python downloader.py $JOB_ID"]
+          args:
+            - |
+              # Extract job ID from KEDA annotation
+              JOB_ID=$(cat /etc/keda-annotations/job-id 2>/dev/null || echo "")
+              if [ -n "$JOB_ID" ]; then
+                echo "Processing job ID: $JOB_ID"
+                python downloader.py "$JOB_ID"
+              else
+                echo "No job ID found in annotations, exiting"
+                exit 1
+              fi
           env:
             - name: MONGO_URI
               valueFrom:
@@ -44,11 +55,10 @@ spec:
                   key: AZURE_BLOB_CONN
             - name: AZURE_CONTAINER
               value: "documents"
-            # KEDA injects queryValue (_id) into pod annotations as job_id
-            - name: JOB_ID
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.annotations['job_id']
+          volumeMounts:
+            - name: keda-annotations
+              mountPath: /etc/keda-annotations
+              readOnly: true
           resources:
             requests:
               memory: "100Mi"
@@ -56,6 +66,13 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
+        volumes:
+          - name: keda-annotations
+            downwardAPI:
+              items:
+                - path: "job-id"
+                  fieldRef:
+                    fieldPath: metadata.annotations['keda.k8s.io/job-id']
   triggers:
   - type: mongodb
     metadata:
@@ -63,9 +80,23 @@ spec:
       dbName: filesure
       collection: jobs
       query: '{"jobStatus": "pending"}'
-      queryValue: "_id"     # tell KEDA to extract the document’s ObjectId (_id)
+      queryValue: "1"  # Scale 1 pod per pending job
+      # This tells KEDA to extract the _id field and pass it as job-id
+      jobId: "_id"
     authenticationRef:
       name: mongo-auth
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: mongo-auth
+  namespace: filesure-prod
+spec:
+  secretTargetRef:
+    - parameter: connectionString
+      name: filesure-secrets
+      key: MONGO_URI
 
 ---
 apiVersion: monitoring.coreos.com/v1
@@ -80,4 +111,4 @@ spec:
   podMetricsEndpoints:
   - port: metrics
     interval: 30s
-    path: /metrics
+    path: "/metrics"
