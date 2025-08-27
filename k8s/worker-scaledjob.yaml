@@ -21,6 +21,7 @@ spec:
           ports:
           - containerPort: 9100
             name: metrics
+          # Pass MongoDB job _id dynamically to worker
           env:
           - name: MONGO_URI
             valueFrom:
@@ -35,7 +36,7 @@ spec:
           - name: JOB_ID
             valueFrom:
               fieldRef:
-                fieldPath: metadata.name
+                fieldPath: metadata.labels['keda.sh/job-id']
           resources:
             requests:
               memory: "512Mi"
