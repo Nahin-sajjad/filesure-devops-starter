@@ -33,17 +33,19 @@ spec:
               secretKeyRef:
                 name: filesure-secrets
                 key: AZURE_BLOB_CONN
+          - name: AZURE_CONTAINER
+            value: "documents"
           - name: JOB_ID
             valueFrom:
               fieldRef:
                 fieldPath: metadata.labels['keda.sh/job-id']
           resources:
             requests:
+              memory: "100Mi"
+              cpu: "200m"
+            limits:
               memory: "512Mi"
               cpu: "500m"
-            limits:
-              memory: "1Gi"
-              cpu: "1"
         restartPolicy: Never
     backoffLimit: 2
     completions: 1
