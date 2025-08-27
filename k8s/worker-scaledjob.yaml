@@ -1,69 +1,128 @@
+---
+# Filesure Worker Job template
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: filesure-worker-template
+  namespace: filesure-prod
+spec:
+  template:
+    metadata:
+      labels:
+        app: filesure-worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9100"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: downloader
+          image: filesureacr.azurecr.io/filesure-worker:latest
+          ports:
+            - containerPort: 9100
+              name: metrics
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: filesure-secrets
+                  key: MONGO_URI
+            - name: AZURE_BLOB_CONN
+              valueFrom:
+                secretKeyRef:
+                  name: filesure-secrets
+                  key: AZURE_BLOB_CONN
+            - name: AZURE_CONTAINER
+              valueFrom:
+                secretKeyRef:
+                  name: filesure-secrets
+                  key: AZURE_CONTAINER
+            - name: JOB_ID
+              value: ""  # injected by KEDA per job
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9100
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9100
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      restartPolicy: Never
+---
+# KEDA TriggerAuthentication for MongoDB
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: mongo-auth
+  namespace: filesure-prod
+spec:
+  secretTargetRef:
+    - parameter: connectionString
+      name: filesure-secrets
+      key: MONGO_URI
+---
+# KEDA ScaledJob
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
 metadata:
-  name: filesure-worker
+  name: filesure-worker-scaledjob
   namespace: filesure-prod
 spec:
   jobTargetRef:
     template:
-      metadata:
-        labels:
-          app: filesure-worker
-        annotations:
-          prometheus.io/scrape: "true"
-          prometheus.io/port: "9100"
-          prometheus.io/path: "/metrics"
       spec:
         containers:
-        - name: filesure-worker
-          image: filesureacr.azurecr.io/filesure-worker:latest
-          imagePullPolicy: Always
-          ports:
-          - containerPort: 9100
-            name: metrics
-          # Pass MongoDB job _id dynamically to worker
-          env:
-          - name: MONGO_URI
-            valueFrom:
-              secretKeyRef:
-                name: filesure-secrets
-                key: MONGO_URI
-          - name: AZURE_BLOB_CONN
-            valueFrom:
-              secretKeyRef:
-                name: filesure-secrets
-                key: AZURE_BLOB_CONN
-          - name: AZURE_CONTAINER
-            value: "documents"
-          - name: JOB_ID
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.labels['keda.sh/job-id']
-          resources:
-            requests:
-              memory: "100Mi"
-              cpu: "200m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
+          - name: downloader
+            image: filesureacr.azurecr.io/filesure-worker:latest
+            env:
+              - name: MONGO_URI
+                valueFrom:
+                  secretKeyRef:
+                    name: filesure-secrets
+                    key: MONGO_URI
+              - name: AZURE_BLOB_CONN
+                valueFrom:
+                  secretKeyRef:
+                    name: filesure-secrets
+                    key: AZURE_BLOB_CONN
+              - name: AZURE_CONTAINER
+                valueFrom:
+                  secretKeyRef:
+                    name: filesure-secrets
+                    key: AZURE_CONTAINER
+              - name: JOB_ID
+                value: ""  # injected per job
+            ports:
+              - containerPort: 9100
         restartPolicy: Never
-    backoffLimit: 2
-    completions: 1
-    ttlSecondsAfterFinished: 300
   pollingInterval: 30
   successfulJobsHistoryLimit: 5
-  failedJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 2
   maxReplicaCount: 10
+  cooldownPeriod: 60
   triggers:
-  - type: mongodb
-    metadata:
-      connectionStringFromEnv: MONGO_URI
-      dbName: filesure
-      collection: jobs
-      query: '{"jobStatus": "pending"}'
-      queryValue: "1"
-
+    - type: mongodb
+      metadata:
+        host: ${MONGO_URI} 
+        dbName: filesure
+        collectionName: jobs
+        query: '{"jobStatus": "pending"}'
+        queryValue: "1"
+      authenticationRef:
+        name: mongo-auth
 ---
+# Prometheus PodMonitor
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
