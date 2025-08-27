@@ -10,17 +10,11 @@ spec:
     metadata:
       labels:
         app: filesure-worker
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "9100"
-        prometheus.io/path: "/metrics"
     spec:
+      restartPolicy: Never
       containers:
         - name: downloader
           image: filesureacr.azurecr.io/filesure-worker:latest
-          ports:
-            - containerPort: 9100
-              name: metrics
           env:
             - name: MONGO_URI
               valueFrom:
@@ -46,19 +40,6 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
-          livenessProbe:
-            httpGet:
-              path: /metrics
-              port: 9100
-            initialDelaySeconds: 30
-            periodSeconds: 10
-          readinessProbe:
-            httpGet:
-              path: /metrics
-              port: 9100
-            initialDelaySeconds: 5
-            periodSeconds: 5
-      restartPolicy: Never
 ---
 # KEDA TriggerAuthentication for MongoDB
 apiVersion: keda.sh/v1alpha1
@@ -82,6 +63,7 @@ spec:
   jobTargetRef:
     template:
       spec:
+        restartPolicy: Never
         containers:
           - name: downloader
             image: filesureacr.azurecr.io/filesure-worker:latest
@@ -103,9 +85,6 @@ spec:
                     key: AZURE_CONTAINER
               - name: JOB_ID
                 value: ""  # injected per job
-            ports:
-              - containerPort: 9100
-        restartPolicy: Never
   pollingInterval: 30
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 2
@@ -133,6 +112,6 @@ spec:
     matchLabels:
       app: filesure-worker
   podMetricsEndpoints:
-  - port: metrics
-    interval: 30s
-    path: /metrics
+    - port: 9100
+      interval: 30s
+      path: /metrics
