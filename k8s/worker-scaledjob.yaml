@@ -21,10 +21,9 @@ spec:
           ports:
           - containerPort: 9100
             name: metrics
-          # Correctly pass the JOB_ID as a command-line argument
-          # The image CMD must accept this argument
-          command: ["python"]
-          args: ["downloader.py", "$(JOB_ID)"]
+          # Use a shell to expand the JOB_ID variable
+          command: ["/bin/sh", "-c"]
+          args: ["python downloader.py $(JOB_ID)"]
           env:
           - name: MONGO_URI
             valueFrom:
@@ -38,7 +37,7 @@ spec:
                 key: AZURE_BLOB_CONN
           - name: AZURE_CONTAINER
             value: "documents"
-          - name: JOB_ID # This environment variable is now deprecated but harmless
+          - name: JOB_ID
             valueFrom:
               fieldRef:
                 fieldPath: metadata.labels['keda.sh/job-id']
