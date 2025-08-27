@@ -58,7 +58,7 @@ spec:
     metadata:
       connectionStringFromEnv: MONGO_URI
       dbName: filesure
-      collectionName: jobs
+      collection: jobs           # <-- corrected
       query: '{"jobStatus": "pending"}'
       queryValue: "1"
     authenticationRef:
