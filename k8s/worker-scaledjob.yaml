@@ -1,46 +1,4 @@
 ---
-# Filesure Worker Job template
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: filesure-worker-template
-  namespace: filesure-prod
-spec:
-  template:
-    metadata:
-      labels:
-        app: filesure-worker
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: downloader
-          image: filesureacr.azurecr.io/filesure-worker:latest
-          env:
-            - name: MONGO_URI
-              valueFrom:
-                secretKeyRef:
-                  name: filesure-secrets
-                  key: MONGO_URI
-            - name: AZURE_BLOB_CONN
-              valueFrom:
-                secretKeyRef:
-                  name: filesure-secrets
-                  key: AZURE_BLOB_CONN
-            - name: AZURE_CONTAINER
-              valueFrom:
-                secretKeyRef:
-                  name: filesure-secrets
-                  key: AZURE_CONTAINER
-            - name: JOB_ID
-              value: ""  # injected by KEDA per job
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "250m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
----
 # KEDA TriggerAuthentication for MongoDB
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
@@ -53,7 +11,7 @@ spec:
       name: filesure-secrets
       key: MONGO_URI
 ---
-# KEDA ScaledJob
+# KEDA ScaledJob for filesure-worker
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
 metadata:
@@ -62,11 +20,19 @@ metadata:
 spec:
   jobTargetRef:
     template:
+      metadata:
+        labels:
+          app: filesure-worker
+        annotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "9100"
+          prometheus.io/path: "/metrics"
       spec:
         restartPolicy: Never
         containers:
           - name: downloader
             image: filesureacr.azurecr.io/filesure-worker:latest
+            imagePullPolicy: Always
             env:
               - name: MONGO_URI
                 valueFrom:
@@ -84,20 +50,59 @@ spec:
                     name: filesure-secrets
                     key: AZURE_CONTAINER
               - name: JOB_ID
-                value: ""  # injected per job
+                value: ""  # injected by KEDA per job
+            ports:
+              - name: metrics
+                containerPort: 9100
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "250m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: metrics
+              initialDelaySeconds: 30
+              periodSeconds: 10
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: metrics
+              initialDelaySeconds: 5
+              periodSeconds: 5
   pollingInterval: 30
+  minReplicaCount: 1       # Always keep at least 1 pod running
+  maxReplicaCount: 10
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 2
-  maxReplicaCount: 10
-  cooldownPeriod: 60
+  scalingStrategy:
+    cooldownPeriod: 60
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 15
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 10
+              periodSeconds: 60
   triggers:
     - type: mongodb
       metadata:
-        host: ${MONGO_URI} 
+        host: ${MONGO_URI}
         dbName: filesure
         collectionName: jobs
         query: '{"jobStatus": "pending"}'
         queryValue: "1"
+        activationQueryValue: "5"   # Start scaling only when 5+ pending jobs
       authenticationRef:
         name: mongo-auth
 ---
@@ -112,6 +117,6 @@ spec:
     matchLabels:
       app: filesure-worker
   podMetricsEndpoints:
-    - port: 9100
+    - port: "metrics"       # Must be a string for PodMonitor
       interval: 30s
       path: /metrics
