@@ -29,42 +29,8 @@ spec:
           ports:
             - containerPort: 9100
               name: metrics
-          # Debug script to find what KEDA is actually setting
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              echo "=== DEBUG: Checking all annotations ==="
-              echo "All pod annotations:"
-              cat /etc/podinfo/annotations
-              echo ""
-              
-              echo "Looking for KEDA-related annotations:"
-              grep -i keda /etc/podinfo/annotations || echo "No KEDA annotations found"
-              echo ""
-              
-              echo "Looking for job-related annotations:"
-              grep -i job /etc/podinfo/annotations || echo "No job annotations found"
-              echo ""
-              
-              # Try to find the job ID in various possible annotation names
-              JOB_ID=""
-              for annotation in keda.k8s.io/job-id keda.k8s.io/jobId keda.sh/job-id keda.sh/jobId; do
-                if value=$(grep "^$annotation=" /etc/podinfo/annotations 2>/dev/null | cut -d= -f2- | tr -d '"'); then
-                  JOB_ID="$value"
-                  echo "Found job ID in annotation $annotation: $JOB_ID"
-                  break
-                fi
-              done
-              
-              if [ -n "$JOB_ID" ]; then
-                echo "Processing job ID: $JOB_ID"
-                python downloader.py "$JOB_ID"
-              else
-                echo "ERROR: No job ID found in any annotation!"
-                echo "All annotations:"
-                cat /etc/podinfo/annotations
-                exit 1
-              fi
+          # Just run the downloader without job ID - it will find jobs itself
+          command: ["python", "downloader.py"]
           env:
             - name: MONGO_URI
               valueFrom:
@@ -78,24 +44,13 @@ spec:
                   key: AZURE_BLOB_CONN
             - name: AZURE_CONTAINER
               value: "documents"
-          volumeMounts:
-            - name: podinfo
-              mountPath: /etc/podinfo
-              readOnly: true
           resources:
             requests:
-              memory: "512Mi"
+              memory: "256Mi"
               cpu: "250m"
             limits:
               memory: "512Mi"
               cpu: "500m"
-        volumes:
-          - name: podinfo
-            downwardAPI:
-              items:
-                - path: "annotations"
-                  fieldRef:
-                    fieldPath: metadata.annotations
   triggers:
   - type: mongodb
     metadata:
@@ -104,22 +59,8 @@ spec:
       collection: jobs
       query: '{"jobStatus": "pending"}'
       queryValue: "1"
-      jobId: "_id"
     authenticationRef:
       name: mongo-auth
-
----
-apiVersion: keda.sh/v1alpha1
-kind: TriggerAuthentication
-metadata:
-  name: mongo-auth
-  namespace: filesure-prod
-spec:
-  secretTargetRef:
-    - parameter: connectionString
-      name: filesure-secrets
-      key: MONGO_URI
-
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
