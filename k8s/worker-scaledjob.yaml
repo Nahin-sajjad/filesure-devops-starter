@@ -4,7 +4,14 @@ metadata:
   name: filesure-worker-scaledjob
   namespace: filesure-prod
 spec:
+  pollingInterval: 30
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+  maxReplicaCount: 10
   jobTargetRef:
+    backoffLimit: 2
+    completions: 1
+    ttlSecondsAfterFinished: 300
     template:
       metadata:
         labels:
@@ -14,33 +21,34 @@ spec:
           prometheus.io/port: "9100"
           prometheus.io/path: "/metrics"
       spec:
+        restartPolicy: Never
         containers:
         - name: filesure-worker
           image: filesureacr.azurecr.io/filesure-worker:latest
           imagePullPolicy: Always
           ports:
-          - containerPort: 9100
-            name: metrics
-          # Use a shell to expand the JOB_ID variable
+            - containerPort: 9100
+              name: metrics
           command: ["/bin/sh", "-c"]
-          args: ["python downloader.py $(JOB_ID)"]
+          args: ["python downloader.py $JOB_ID"]
           env:
-          - name: MONGO_URI
-            valueFrom:
-              secretKeyRef:
-                name: filesure-secrets
-                key: MONGO_URI
-          - name: AZURE_BLOB_CONN
-            valueFrom:
-              secretKeyRef:
-                name: filesure-secrets
-                key: AZURE_BLOB_CONN
-          - name: AZURE_CONTAINER
-            value: "documents"
-          - name: JOB_ID
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.labels['keda.sh/job-id']
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: filesure-secrets
+                  key: MONGO_URI
+            - name: AZURE_BLOB_CONN
+              valueFrom:
+                secretKeyRef:
+                  name: filesure-secrets
+                  key: AZURE_BLOB_CONN
+            - name: AZURE_CONTAINER
+              value: "documents"
+            # KEDA injects queryValue (_id) into pod annotations as job_id
+            - name: JOB_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['job_id']
           resources:
             requests:
               memory: "100Mi"
@@ -48,14 +56,6 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
-        restartPolicy: Never
-    backoffLimit: 2
-    completions: 1
-    ttlSecondsAfterFinished: 300
-  pollingInterval: 30
-  successfulJobsHistoryLimit: 5
-  failedJobsHistoryLimit: 5
-  maxReplicaCount: 10
   triggers:
   - type: mongodb
     metadata:
@@ -63,7 +63,7 @@ spec:
       dbName: filesure
       collection: jobs
       query: '{"jobStatus": "pending"}'
-      queryValue: "1"
+      queryValue: "_id"     # tell KEDA to extract the document’s ObjectId (_id)
     authenticationRef:
       name: mongo-auth
 
