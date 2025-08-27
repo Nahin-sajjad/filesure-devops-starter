@@ -29,17 +29,40 @@ spec:
           ports:
             - containerPort: 9100
               name: metrics
-          # Use shell command to extract job ID from KEDA annotation and pass as argument
+          # Debug script to find what KEDA is actually setting
           command: ["/bin/sh", "-c"]
           args:
             - |
-              # Extract job ID from KEDA annotation
-              JOB_ID=$(cat /etc/keda-annotations/job-id 2>/dev/null || echo "")
+              echo "=== DEBUG: Checking all annotations ==="
+              echo "All pod annotations:"
+              cat /etc/podinfo/annotations
+              echo ""
+              
+              echo "Looking for KEDA-related annotations:"
+              grep -i keda /etc/podinfo/annotations || echo "No KEDA annotations found"
+              echo ""
+              
+              echo "Looking for job-related annotations:"
+              grep -i job /etc/podinfo/annotations || echo "No job annotations found"
+              echo ""
+              
+              # Try to find the job ID in various possible annotation names
+              JOB_ID=""
+              for annotation in keda.k8s.io/job-id keda.k8s.io/jobId keda.sh/job-id keda.sh/jobId; do
+                if value=$(grep "^$annotation=" /etc/podinfo/annotations 2>/dev/null | cut -d= -f2- | tr -d '"'); then
+                  JOB_ID="$value"
+                  echo "Found job ID in annotation $annotation: $JOB_ID"
+                  break
+                fi
+              done
+              
               if [ -n "$JOB_ID" ]; then
                 echo "Processing job ID: $JOB_ID"
                 python downloader.py "$JOB_ID"
               else
-                echo "No job ID found in annotations, exiting"
+                echo "ERROR: No job ID found in any annotation!"
+                echo "All annotations:"
+                cat /etc/podinfo/annotations
                 exit 1
               fi
           env:
@@ -56,23 +79,23 @@ spec:
             - name: AZURE_CONTAINER
               value: "documents"
           volumeMounts:
-            - name: keda-annotations
-              mountPath: /etc/keda-annotations
+            - name: podinfo
+              mountPath: /etc/podinfo
               readOnly: true
           resources:
             requests:
-              memory: "100Mi"
-              cpu: "200m"
+              memory: "512Mi"
+              cpu: "250m"
             limits:
               memory: "512Mi"
               cpu: "500m"
         volumes:
-          - name: keda-annotations
+          - name: podinfo
             downwardAPI:
               items:
-                - path: "job-id"
+                - path: "annotations"
                   fieldRef:
-                    fieldPath: metadata.annotations['keda.k8s.io/job-id']
+                    fieldPath: metadata.annotations
   triggers:
   - type: mongodb
     metadata:
@@ -80,8 +103,7 @@ spec:
       dbName: filesure
       collection: jobs
       query: '{"jobStatus": "pending"}'
-      queryValue: "1"  # Scale 1 pod per pending job
-      # This tells KEDA to extract the _id field and pass it as job-id
+      queryValue: "1"
       jobId: "_id"
     authenticationRef:
       name: mongo-auth
