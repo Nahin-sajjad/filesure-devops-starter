@@ -1,5 +1,4 @@
 ---
-# KEDA TriggerAuthentication for MongoDB
 apiVersion: keda.sh/v1alpha1
 kind: TriggerAuthentication
 metadata:
@@ -8,14 +7,14 @@ metadata:
 spec:
   secretTargetRef:
     - parameter: connectionString
-      name: filesure-secrets
+      name: filesure-secrets       # Kubernetes Secret storing MongoDB URI
       key: MONGO_URI
+
 ---
-# KEDA ScaledJob for filesure-worker
 apiVersion: keda.sh/v1alpha1
 kind: ScaledJob
 metadata:
-  name: filesure-worker-scaledjob
+  name: filesure-worker
   namespace: filesure-prod
 spec:
   jobTargetRef:
@@ -28,11 +27,13 @@ spec:
           prometheus.io/port: "9100"
           prometheus.io/path: "/metrics"
       spec:
-        restartPolicy: Never
         containers:
-          - name: downloader
+          - name: filesure-worker
             image: filesureacr.azurecr.io/filesure-worker:latest
             imagePullPolicy: Always
+            ports:
+              - containerPort: 9100
+                name: metrics
             env:
               - name: MONGO_URI
                 valueFrom:
@@ -45,68 +46,35 @@ spec:
                     name: filesure-secrets
                     key: AZURE_BLOB_CONN
               - name: AZURE_CONTAINER
-                valueFrom:
-                  secretKeyRef:
-                    name: filesure-secrets
-                    key: AZURE_CONTAINER
+                value: "documents"
               - name: JOB_ID
-                value: ""  # injected by KEDA per job
-            ports:
-              - name: metrics
-                containerPort: 9100
+                value: "" # injected dynamically by KEDA
             resources:
               requests:
-                memory: "256Mi"
-                cpu: "250m"
+                memory: "100Mi"
+                cpu: "200m"
               limits:
                 memory: "512Mi"
                 cpu: "500m"
-            livenessProbe:
-              httpGet:
-                path: /health
-                port: metrics
-              initialDelaySeconds: 30
-              periodSeconds: 10
-            readinessProbe:
-              httpGet:
-                path: /health
-                port: metrics
-              initialDelaySeconds: 5
-              periodSeconds: 5
+        restartPolicy: Never
+    backoffLimit: 2
+    completions: 1
+    ttlSecondsAfterFinished: 300
   pollingInterval: 30
-  minReplicaCount: 1       # Always keep at least 1 pod running
-  maxReplicaCount: 10
   successfulJobsHistoryLimit: 5
-  failedJobsHistoryLimit: 2
-  scalingStrategy:
-    cooldownPeriod: 60
-    horizontalPodAutoscalerConfig:
-      behavior:
-        scaleUp:
-          stabilizationWindowSeconds: 15
-          policies:
-            - type: Percent
-              value: 100
-              periodSeconds: 15
-        scaleDown:
-          stabilizationWindowSeconds: 300
-          policies:
-            - type: Percent
-              value: 10
-              periodSeconds: 60
+  failedJobsHistoryLimit: 5
+  maxReplicaCount: 10
   triggers:
     - type: mongodb
       metadata:
-        host: ${MONGO_URI}
         dbName: filesure
-        collectionName: jobs
+        collection: jobs
         query: '{"jobStatus": "pending"}'
         queryValue: "1"
-        activationQueryValue: "5"   # Start scaling only when 5+ pending jobs
       authenticationRef:
         name: mongo-auth
+
 ---
-# Prometheus PodMonitor
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
@@ -117,6 +85,6 @@ spec:
     matchLabels:
       app: filesure-worker
   podMetricsEndpoints:
-    - port: "metrics"       # Must be a string for PodMonitor
+    - port: metrics
       interval: 30s
       path: /metrics
